@@ -12,6 +12,7 @@ import parser as prsr
 import time
 import numpy as np
 import sys
+import syslog
 
 class Scanner(object):
     """Scanner that controls receiver
@@ -68,6 +69,8 @@ class Scanner(object):
         self.channel_spacing = 5000
         self.lockout_file_name = lockout_file_name
         self.priority_file_name = priority_file_name
+        self.idle_counter = 0
+        self.chatter_counter = 0
 
         # Create receiver object
         self.receiver = recvr.Receiver(ask_samp_rate, num_demod, type_demod,
@@ -165,6 +168,7 @@ class Scanner(object):
         # Create an tuned channel list of strings for the GUI
         # If channel is a zero then use an empty string
         self.gui_tuned_channels = []
+        something_tuned = False
         for demod_freq in self.receiver.get_demod_freqs():
             if demod_freq == 0:
                 text = ""
@@ -173,7 +177,25 @@ class Scanner(object):
                 gui_tuned_channel = (demod_freq + \
                                     self.center_freq)/1E6
                 text = '{:.3f}'.format(gui_tuned_channel)
+                something_tuned = True
             self.gui_tuned_channels.append(text)
+
+        if not something_tuned:
+            self.idle_counter += 1
+            if self.idle_counter > (10 + self.chatter_counter):
+                #syslog.syslog('things are too quiet.  Increment the center freq')
+                if self.center_freq + self.samp_rate/2 <= self.base_freq + self.spread/2:
+                    new_center = self.center_freq + self.samp_rate
+                else:
+                    new_center = self.base_freq - (self.spread/2) + self.samp_rate
+                self.set_center_freq( new_center )
+                self.idle_counter = 0
+                self.chatter_counter = 0
+                syslog.syslog('new_center: %i' % new_center )
+        else:
+            self.idle_counter = 0
+            self.chatter_counter = 100  # if there is activity linger longer on this center_freq
+            #syslog.syslog('for gui %s' % self.receiver.get_demod_freqs())
 
     def add_lockout(self, idx):
         """Adds baseband frequency to lockout channels and updates GUI list
@@ -309,6 +331,15 @@ class Scanner(object):
         self.receiver.stop()
         self.receiver.wait()
 
+    def set_sweep(self, center_freq, spread):
+        """At this center look over the entire range
+
+        Args:
+            center_freq (float): Hardware RF center frequency in Hz
+            spread (float): sweep range in Hz
+        """
+        self.base_freq = center_freq
+        self.spread    = spread
 
 def main():
     """Test the scanner

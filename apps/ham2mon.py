@@ -64,6 +64,7 @@ def main(screen):
     scanner.set_squelch(PARSER.squelch_db)
     scanner.set_volume(PARSER.volume_db)
     scanner.set_threshold(PARSER.threshold_db)
+    scanner.set_sweep(PARSER.center_freq, 10E6) # hardcoded hack.  sweep around the center_freq
 
     # Get the initial settings for GUI
     rxwin.center_freq = scanner.center_freq
@@ -93,6 +94,9 @@ def main(screen):
 
         # Update physical screen
         curses.doupdate()
+
+        # Hack until I figure out how to get updates to gui when scanner.py changes things
+        rxwin.center_freq = scanner.center_freq
 
         # Get keystroke
         keyb = screen.getch()
