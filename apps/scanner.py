@@ -71,6 +71,7 @@ class Scanner(object):
         self.priority_file_name = priority_file_name
         self.idle_counter = 0
         self.chatter_counter = 0
+        self.demod_start = {}  # we want to kill long running demodulations
 
         # Create receiver object
         self.receiver = recvr.Receiver(ask_samp_rate, num_demod, type_demod,
@@ -142,12 +143,28 @@ class Scanner(object):
                 pass
         channels = temp
 
+        # look for long running demods
+        temp_starts = {}
+        for demodulator in self.receiver.demodulators:
+            if self.demod_start.has_key(demodulator.center_freq):
+                if time.time() - self.demod_start[demodulator.center_freq] > 30:
+                    demodulator.set_center_freq(0, self.center_freq)
+                    syslog.syslog('freq too long %s' % demodulator.center_freq)
+                elif demodulator.center_freq <> 0:
+                    temp_starts[demodulator.center_freq] = self.demod_start[demodulator.center_freq]
+            else:
+                temp_starts[demodulator.center_freq] = time.time()
+
+        self.demod_start = temp_starts
+
         # Set demodulators that are no longer in channel list to 0 Hz
         for demodulator in self.receiver.demodulators:
             if demodulator.center_freq not in channels:
                 demodulator.set_center_freq(0, self.center_freq)
             else:
                 pass
+
+        #syslog.syslog('demod freqs %s' % self.receiver.get_demod_freqs())
 
         # Add new channels to demodulators
         for channel in channels:
