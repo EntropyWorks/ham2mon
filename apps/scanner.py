@@ -69,8 +69,8 @@ class Scanner(object):
         self.channel_spacing = 5000
         self.lockout_file_name = lockout_file_name
         self.priority_file_name = priority_file_name
-        self.idle_counter = 0
-        self.chatter_counter = 0
+        self.idle_start = time.time()
+        self.chat_lag = 0
         self.demod_start = {}  # we want to kill long running demodulations
 
         # Create receiver object
@@ -147,9 +147,9 @@ class Scanner(object):
         temp_starts = {}
         for demodulator in self.receiver.demodulators:
             if self.demod_start.has_key(demodulator.center_freq):
-                if time.time() - self.demod_start[demodulator.center_freq] > 30:
-                    demodulator.set_center_freq(0, self.center_freq)
+                if time.time() - self.demod_start[demodulator.center_freq] > 10:
                     syslog.syslog('freq too long %s' % demodulator.center_freq)
+                    demodulator.set_center_freq(0, self.center_freq)
                 elif demodulator.center_freq <> 0:
                     temp_starts[demodulator.center_freq] = self.demod_start[demodulator.center_freq]
             else:
@@ -197,22 +197,19 @@ class Scanner(object):
                 something_tuned = True
             self.gui_tuned_channels.append(text)
 
+        # search through larger range if things are quiet
         if not something_tuned:
-            self.idle_counter += 1
-            if self.idle_counter > (10 + self.chatter_counter):
-                #syslog.syslog('things are too quiet.  Increment the center freq')
+            if time.time() - self.idle_start > (5 + self.chat_lag):
                 if self.center_freq + self.samp_rate/2 <= self.base_freq + self.spread/2:
                     new_center = self.center_freq + self.samp_rate
                 else:
                     new_center = self.base_freq - (self.spread/2) + self.samp_rate
                 self.set_center_freq( new_center )
-                self.idle_counter = 0
-                self.chatter_counter = 0
-                syslog.syslog('new_center: %i' % new_center )
+                self.idle_start = time.time()
+                self.chat_lag = 0
         else:
-            self.idle_counter = 0
-            self.chatter_counter = 100  # if there is activity linger longer on this center_freq
-            #syslog.syslog('for gui %s' % self.receiver.get_demod_freqs())
+            self.idle_start = time.time()
+            self.chat_lag = 5  # if there is activity linger longer on this center_freq
 
     def add_lockout(self, idx):
         """Adds baseband frequency to lockout channels and updates GUI list
