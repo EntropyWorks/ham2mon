@@ -199,7 +199,7 @@ class Scanner(object):
 
         # search through larger range if things are quiet
         if not something_tuned:
-            if time.time() - self.idle_start > (5 + self.chat_lag):
+            if time.time() - self.idle_start > (2 + self.chat_lag):
                 if self.center_freq + self.samp_rate/2 <= self.base_freq + self.spread/2:
                     new_center = self.center_freq + self.samp_rate
                 else:
