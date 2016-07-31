@@ -198,6 +198,8 @@ class Scanner(object):
             self.gui_tuned_channels.append(text)
 
         # search through larger range if things are quiet
+        if self.spread == 0:
+            return
         if not something_tuned:
             if time.time() - self.idle_start > (2 + self.chat_lag):
                 if self.center_freq + self.samp_rate/2 <= self.base_freq + self.spread/2:

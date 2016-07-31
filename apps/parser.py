@@ -97,6 +97,10 @@ class CLParser(object):
                           default=8,
                           help="Audio bit depth (bps)")
 
+        parser.add_option("-e", "--expand", type="string", dest="sweep_range",
+                          default=0,
+                          help="Sweep over a wide range.  This is for testing only")
+
         options = parser.parse_args()[0]
         self.parser_args = parser.parse_args()[1]
 
@@ -115,6 +119,7 @@ class CLParser(object):
         self.priority_file_name = str(options.priority_file_name)
         self.freq_correction = int(options.freq_correction)
         self.audio_bps = int(options.audio_bps)
+        self.sweep_range = float(options.sweep_range)
 
 
 def main():
@@ -140,6 +145,7 @@ def main():
     print "priority_file_name:  " + str(parser.priority_file_name)
     print "freq_correction:     " + str(parser.freq_correction)
     print "audio_bps:           " + str(parser.audio_bps)
+    print "sweep_range:         " + str(parser.sweep_range)
 
 
 if __name__ == '__main__':
