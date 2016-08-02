@@ -64,7 +64,8 @@ def main(screen):
     scanner.set_squelch(PARSER.squelch_db)
     scanner.set_volume(PARSER.volume_db)
     scanner.set_threshold(PARSER.threshold_db)
-    scanner.set_sweep(PARSER.center_freq, 10E6) # hardcoded hack.  sweep around the center_freq
+    #if PARSER.sweep_range > 0:
+    scanner.set_sweep(PARSER.center_freq, PARSER.sweep_range) # sweep around the center_freq
 
     # Get the initial settings for GUI
     rxwin.center_freq = scanner.center_freq
@@ -79,6 +80,7 @@ def main(screen):
 
     specwin.threshold_db = scanner.threshold_db
 
+    freq_out = time.time()
     while 1:
         # No need to go faster than 10 Hz rate of GNU Radio probe
         time.sleep(0.1)
@@ -97,6 +99,16 @@ def main(screen):
 
         # Hack until I figure out how to get updates to gui when scanner.py changes things
         rxwin.center_freq = scanner.center_freq
+
+        if time.time() - freq_out > 1:
+            try:
+                target = open('cur_freq', 'r')
+                #target.write(str(scanner.center_freq/1000000))
+                #target.write("\n")
+                scanner.set_center_freq(int(target.readline()))
+                target.close()
+            except:
+                print("Could not open cur_freq or format invalid");
 
         # Get keystroke
         keyb = screen.getch()
