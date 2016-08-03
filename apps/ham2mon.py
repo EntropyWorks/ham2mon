@@ -106,9 +106,10 @@ def main(screen):
                 #target.write(str(scanner.center_freq/1000000))
                 #target.write("\n")
                 scanner.set_center_freq(int(target.readline()))
-                target.close()
             except:
                 print("Could not open cur_freq or format invalid");
+            finally:
+                target.close()
 
         # Get keystroke
         keyb = screen.getch()
