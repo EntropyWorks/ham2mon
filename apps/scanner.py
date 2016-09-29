@@ -12,6 +12,7 @@ import parser as prsr
 import time
 import numpy as np
 import sys
+import syslog
 
 class Scanner(object):
     """Scanner that controls receiver
@@ -70,6 +71,9 @@ class Scanner(object):
         self.channel_spacing = 5000
         self.lockout_file_name = lockout_file_name
         self.priority_file_name = priority_file_name
+        self.idle_start = time.time()
+        self.chat_lag = 0
+        self.demod_start = {}  # we want to kill long running demodulations
 
         # Create receiver object
         self.receiver = recvr.Receiver(ask_samp_rate, num_demod, type_demod,
@@ -142,12 +146,28 @@ class Scanner(object):
                 pass
         channels = temp
 
+        # look for long running demods
+        temp_starts = {}
+        for demodulator in self.receiver.demodulators:
+            if self.demod_start.has_key(demodulator.center_freq):
+                if time.time() - self.demod_start[demodulator.center_freq] > 10:
+                    syslog.syslog('freq too long %s' % demodulator.center_freq)
+                    demodulator.set_center_freq(0, self.center_freq)
+                elif demodulator.center_freq <> 0:
+                    temp_starts[demodulator.center_freq] = self.demod_start[demodulator.center_freq]
+            else:
+                temp_starts[demodulator.center_freq] = time.time()
+
+        self.demod_start = temp_starts
+
         # Set demodulators that are no longer in channel list to 0 Hz
         for demodulator in self.receiver.demodulators:
             if demodulator.center_freq not in channels:
                 demodulator.set_center_freq(0, self.center_freq)
             else:
                 pass
+
+        #syslog.syslog('demod freqs %s' % self.receiver.get_demod_freqs())
 
         # Add new channels to demodulators
         for channel in channels:
@@ -168,6 +188,7 @@ class Scanner(object):
         # Create an tuned channel list of strings for the GUI
         # If channel is a zero then use an empty string
         self.gui_tuned_channels = []
+        something_tuned = False
         for demod_freq in self.receiver.get_demod_freqs():
             if demod_freq == 0:
                 text = ""
@@ -176,7 +197,24 @@ class Scanner(object):
                 gui_tuned_channel = (demod_freq + \
                                     self.center_freq)/1E6
                 text = '{:.3f}'.format(gui_tuned_channel)
+                something_tuned = True
             self.gui_tuned_channels.append(text)
+
+        # search through larger range if things are quiet
+        if self.spread == 0:
+            return
+        if not something_tuned:
+            if time.time() - self.idle_start > (2 + self.chat_lag):
+                if self.center_freq + self.samp_rate/2 <= self.base_freq + self.spread/2:
+                    new_center = self.center_freq + self.samp_rate
+                else:
+                    new_center = self.base_freq - (self.spread/2) + self.samp_rate
+                self.set_center_freq( new_center )
+                self.idle_start = time.time()
+                self.chat_lag = 0
+        else:
+            self.idle_start = time.time()
+            self.chat_lag = 5  # if there is activity linger longer on this center_freq
 
     def add_lockout(self, idx):
         """Adds baseband frequency to lockout channels and updates GUI list
@@ -312,6 +350,15 @@ class Scanner(object):
         self.receiver.stop()
         self.receiver.wait()
 
+    def set_sweep(self, center_freq, spread):
+        """At this center look over the entire range
+
+        Args:
+            center_freq (float): Hardware RF center frequency in Hz
+            spread (float): sweep range in Hz
+        """
+        self.base_freq = center_freq
+        self.spread    = spread
 
 def main():
     """Test the scanner
